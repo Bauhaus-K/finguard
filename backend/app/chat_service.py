@@ -79,7 +79,8 @@ def gateway_input(
     return GatewayInput(
         user_message=result.masked_input,
         answer=result.answer,
-        sources=result.source_figures,
+        # 고객 입력 수치는 출처로 넘기지 않는다. 게이트웨이가 규칙(accept_user_number_units)으로 판단한다.
+        sources=[s.figure for s in result.figures if s.origin != "user"],
         tools_called=result.tool_names,
         product_types=sorted(set(calc_types)),
         products=products,

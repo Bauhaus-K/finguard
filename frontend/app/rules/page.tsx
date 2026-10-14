@@ -133,8 +133,8 @@ export default function RulesPage() {
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
                 <dt className="text-muted">수치 검증 단위</dt>
                 <dd>{r.numeric.units.join(", ")}</dd>
-                <dt className="text-muted">고객 입력 수치 인정</dt>
-                <dd>{r.numeric.accept_user_numbers ? "예" : "아니오"}</dd>
+                <dt className="text-muted">고객 입력 수치 인정 단위</dt>
+                <dd>{r.numeric.accept_user_number_units.join(", ") || "없음"}</dd>
                 <dt className="text-muted">적합성 트리거 도구</dt>
                 <dd>{r.suitability.trigger_tools.join(", ")}</dd>
                 <dt className="text-muted">적합성 대체 문구</dt>

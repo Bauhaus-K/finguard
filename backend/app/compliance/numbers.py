@@ -50,6 +50,19 @@ class ExtractedNumber:
         return (self.unit, self.value.normalize())
 
 
+# 한글 수사로 쓴 금액·비율("삼백만 원", "오 퍼센트")은 정규화하지 않는다. 검증할 수 없으므로 따로 찾아낸다.
+_HANGUL_NUMERAL = re.compile(
+    # 앞이 한글·숫자가 아닌 곳에서 시작(회사원·1,000만 원 제외), 배수(십백천만억)를 포함한 한글 수사 + 원/퍼센트
+    r"(?<![가-힣0-9,.])[일이삼사오육칠팔구십백천만억]*[십백천만억][일이삼사오육칠팔구십백천만억]*\s*(?:원|퍼센트)"
+    # 한 자리 한글 수사 + 퍼센트 ("오 퍼센트")
+    r"|(?<![가-힣0-9,.])[일이삼사오육칠팔구]\s*퍼센트"
+)
+
+
+def find_hangul_numerals(text: str) -> list[str]:
+    return [m.group(0) for m in _HANGUL_NUMERAL.finditer(text)]
+
+
 def _dec(raw: str) -> Decimal | None:
     try:
         return Decimal(raw.replace(",", ""))

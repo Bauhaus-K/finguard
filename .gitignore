@@ -23,3 +23,6 @@ node_modules/
 .next/
 
 .DS_Store
+
+# 평가 작업 DB
+eval/.work/

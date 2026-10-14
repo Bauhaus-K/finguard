@@ -5,7 +5,7 @@ BACKEND := backend
 RUN := cd $(BACKEND) && uv run
 
 .PHONY: help install dev migrate seed test test-all lint fmt eval golden-manual db-up db-down \
-	web-install web-dev web-build web-check e2e demo-offline
+	web-install web-dev web-build web-check e2e demo-offline eval-offline
 
 help:
 	@echo "make install   - 의존성 설치 (uv sync)"
@@ -49,8 +49,12 @@ fmt: install
 golden-manual: seed
 	$(RUN) python -m scripts.run_golden --limit 10
 
-eval:
-	@echo "make eval 은 Phase 5 에서 구현됩니다." && exit 1
+eval: install
+	$(RUN) python -m scripts.run_eval
+
+# 실제 LLM 없이 평가 파이프라인과 게이트웨이 단독 평가만 점검 (LLM 품질 지표 아님)
+eval-offline: install
+	$(RUN) python -m scripts.run_eval --provider scripted
 
 db-up:
 	docker compose up -d db

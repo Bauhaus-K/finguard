@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from app.calc.common import Figure
-from app.compliance.numbers import extract_numbers
+from app.compliance.numbers import extract_numbers, find_hangul_numerals
 from app.compliance.provenance import figure_keys
 from app.gateway.types import Action, CheckResult, Finding, GatewayInput, Outcome
 
@@ -20,8 +20,8 @@ def allowed_keys(inp: GatewayInput, rules: "Rules") -> set:
     keys = figure_keys(inp.sources)
     for t in inp.context_texts:
         keys |= {n.key for n in extract_numbers(t)}
-    if cfg.accept_user_numbers:
-        keys |= {n.key for n in extract_numbers(inp.user_message)}
+    user_units = set(cfg.accept_user_number_units)
+    keys |= {n.key for n in extract_numbers(inp.user_message) if n.unit in user_units}
     keys |= figure_keys(
         Figure(name="always_allowed", value=Decimal(str(a.value)), unit=a.unit)
         for a in cfg.always_allowed
@@ -34,7 +34,8 @@ def run(inp: GatewayInput, text: str, rules: "Rules", ctx: "CheckContext") -> Ch
     numbers = [n for n in extract_numbers(text) if n.unit in units]
     allowed = allowed_keys(inp, rules)
     unsourced = [n for n in numbers if n.key not in allowed]
-    if unsourced:
+    hangul = find_hangul_numerals(text)
+    if unsourced or hangul:
         return CheckResult(
             check=ID,
             outcome=Outcome.FAIL,
@@ -46,6 +47,14 @@ def run(inp: GatewayInput, text: str, rules: "Rules", ctx: "CheckContext") -> Ch
                     excerpt=n.text,
                 )
                 for n in unsourced
+            ]
+            + [
+                Finding(
+                    code="unverifiable_number",
+                    message=f"한글 수사 표기라 검증할 수 없는 수치: {h} (숫자로 표기해야 함)",
+                    excerpt=h,
+                )
+                for h in hangul
             ],
         )
     return CheckResult(

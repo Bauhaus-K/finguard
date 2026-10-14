@@ -68,7 +68,9 @@ class AllowedNumber(_Model):
 class NumericRules(_Model):
     enabled: bool = True
     units: list[FigureUnit] = Field(default_factory=lambda: list(FigureUnit))
-    accept_user_numbers: bool = True
+    accept_user_number_units: list[FigureUnit] = Field(
+        default_factory=lambda: [FigureUnit.MONTHS, FigureUnit.DAYS]
+    )
     always_allowed: list[AllowedNumber] = Field(default_factory=list)
 
 

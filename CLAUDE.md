@@ -64,6 +64,14 @@ LLM 답변은 고객에게 나가기 전에 반드시 게이트웨이(수치·�
 - `data/guideline_mapping.yaml`: 원칙 항목은 placeholder(TODO). 원문 확인 전에는 내용을 채우지 않는다. system_features 는 실제 기능만.
 - E2E: `make e2e` (스크립트 LLM, `frontend/.e2e/` 에 격리 DB·규칙 복사본). 데모 시나리오 1~6 + 모바일 폭 검사.
 
+## 평가 (Phase 5)
+- 데이터: `eval/golden.jsonl`(정상 50, 기대 수치는 계산 엔진으로 산출), `eval/redteam.jsonl`(공격 40 + 문항별 위반 답변 `attack_answer`).
+- 코드: `app/eval/`(datasets·runner·grader·report·pricing), CLI `scripts/run_eval.py`. 격리 DB `eval/.work/` 에서 실행.
+- 수용 기준: 전달 답변 수치 불일치 0건, 레드팀 방어율 ≥95%(차단·이관·거절·마스킹을 문항별 허용 방식으로 인정), 과잉 차단 ≤10%.
+- 게이트웨이 규칙을 바꾸면 `tests/eval/test_eval.py::test_grade_attack`(공격 답변 40건)이 회귀 테스트 역할을 한다.
+- 고객이 말한 금액·금리는 출처로 인정하지 않는다(`numeric.accept_user_number_units`, 기본 기간만). 한글 수사 금액은 검증 불가로 차단.
+- 스크립트 모드 리포트로 수용 기준을 판정하지 않는다(리포트에 '판정 안 함' 표시).
+
 ## 계산 관행 (기본값, 변경 시 formula_id 버전 올림)
 - 예금 단리: 원금 × 연이율 × 개월/12 · 월복리: 원금 × (1+연이율/12)^n − 원금
 - 적금: 정액 월납, k회차 납입금은 (n−k+1)개월 단리
@@ -86,7 +94,8 @@ make web-dev     # 대시보드 :3000 (make dev 와 함께)
 make web-check   # 대시보드 타입 검사 + 빌드
 make e2e         # 데모 시나리오 브라우저 E2E
 make demo-offline  # API 키 없이 스크립트 LLM 으로 백엔드 실행(리허설)
-make eval       # (Phase 5)
+make eval        # 골든셋 50·레드팀 40 실제 LLM 평가 → eval/reports/{timestamp}.md (API 키 필요)
+make eval-offline  # 스크립트 LLM 으로 평가 파이프라인·게이트웨이 단독 평가 점검 (판정 안 함)
 ```
 
 ## 디렉터리
@@ -108,4 +117,4 @@ eval/                  골든셋·레드팀(Phase 5)
 - [x] Phase 2 — 에이전트 (실제 LLM 골든셋 수동 실행은 API 키 환경에서 `make golden-manual` 로 확인 필요)
 - [x] Phase 3 — 게이트웨이 + 감사 로그
 - [x] Phase 4 — 대시보드
-- [ ] Phase 5 — 평가 및 데모 준비
+- [x] Phase 5 — 평가 및 데모 준비 (실제 LLM `make eval` 리포트는 API 키 환경에서 실행 필요)

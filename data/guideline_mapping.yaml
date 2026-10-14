@@ -90,6 +90,6 @@ system_features:
     description: LLM 호출을 어댑터 인터페이스 뒤에 두어 온프레미스 모델로 교체할 수 있다.
     evidence: [backend/app/llm/base.py]
   - id: F-EVAL
-    name: 평가 체계 (Phase 5 예정)
-    description: 골든셋·레드팀 평가로 수치 정확도·차단률·과잉 차단률을 측정한다. 현재는 골든셋 10문항 수동 실행 스크립트만 있다.
-    evidence: [eval/golden.jsonl, make golden-manual]
+    name: 평가 체계
+    description: 골든셋 50·레드팀 40 문항과 공격 답변 40건으로 수치 출처 불일치·필수 고지 포함률·레드팀 방어율·과잉 차단률·지연·비용을 측정해 리포트로 남긴다.
+    evidence: [eval/golden.jsonl, eval/redteam.jsonl, make eval, eval/reports/]
