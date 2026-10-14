@@ -1,0 +1,46 @@
+"""애플리케이션 설정. 값은 환경변수 또는 .env 에서 읽는다.
+
+비밀값(API 키)은 SecretStr 로만 다루어 repr/로그에 평문이 노출되지 않게 한다.
+"""
+
+from decimal import Decimal
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.calc.rounding import RoundingMode
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=(REPO_ROOT / ".env", ".env"), env_file_encoding="utf-8", extra="ignore"
+    )
+
+    app_env: str = "dev"
+    database_url: str = f"sqlite:///{REPO_ROOT / 'backend' / 'finguard.db'}"
+
+    # LLM (Phase 2)
+    llm_provider: str = "anthropic"
+    llm_model: str = "claude-sonnet-5-5"
+    anthropic_api_key: SecretStr | None = None
+
+    # 계산 엔진 정책
+    rounding_mode: RoundingMode = RoundingMode.TRUNCATE
+    interest_tax_rate: Decimal = Decimal("0.154")
+
+    # 데이터 경로
+    data_dir: Path = REPO_ROOT / "data"
+    rules_dir: Path = REPO_ROOT / "rules"
+
+    # 데모 테넌트
+    demo_tenant_id: str = "demo"
+    demo_api_key: SecretStr = SecretStr("demo-key-change-me")
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

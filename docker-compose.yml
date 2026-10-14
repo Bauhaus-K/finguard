@@ -1,0 +1,41 @@
+# 로컬 개발용. 기본 개발 DB 는 SQLite 이며, PostgreSQL+pgvector 가 필요할 때 사용한다.
+#   make db-up                       # DB 만 실행
+#   docker compose up --build        # DB + 백엔드
+# 백엔드 컨테이너의 DATABASE_URL 은 아래 environment 로 덮어쓴다.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: finguard
+      POSTGRES_PASSWORD: finguard
+      POSTGRES_DB: finguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://finguard:finguard@db:5432/finguard
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    command: >-
+      sh -c "uv run alembic upgrade head && uv run python -m app.db.seed &&
+             uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+volumes:
+  pgdata:

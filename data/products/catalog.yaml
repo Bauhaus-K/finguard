@@ -1,0 +1,209 @@
+# ============================================================================
+# 한빛저축은행(가상) 상품 카탈로그 — 데모용 MOCK 데이터
+# 실제 금융회사·실제 상품과 무관한 가상 데이터입니다.
+#
+# - 금리 단위: 연 %  (예: 3.30 → 연 3.30%)
+# - 금액 단위: 원. 적금의 min/max_amount 는 '월 납입액'
+# - early_termination_tiers: 경과 개월 수 구간별 '약정이율 대비 비율'
+# - prepayment_fee_rate: 중도상환수수료율(%) / prepayment_exemption_days: 면제 경과일수
+# - 이 파일이 상품 정보의 원본이며 `make seed` 로 DB 에 적재된다.
+# ============================================================================
+tenant:
+  id: demo
+  name: 한빛저축은행(가상)
+
+_deposit_tiers: &deposit_tiers
+  - { min_elapsed_months: 0, rate_ratio: "0.1" }
+  - { min_elapsed_months: 3, rate_ratio: "0.3" }
+  - { min_elapsed_months: 6, rate_ratio: "0.5" }
+  - { min_elapsed_months: 9, rate_ratio: "0.7" }
+
+# TODO(검증 필요): 예금자보호 한도 문구는 데모 전 예금보험공사 공지로 시행 기준을 확인할 것.
+_protection_notice: &protection_notice >-
+  이 예금은 예금자보호법에 따라 원금과 소정의 이자를 합하여 1인당 최고 1억원까지 보호됩니다.
+  보호 한도를 초과하는 나머지 금액은 보호하지 않습니다.
+
+products:
+  # ---------------------------------------------------------------- 정기예금
+  - code: HB-DEP-001
+    name: 한빛 정기예금(가상)
+    product_type: DEPOSIT
+    summary: 목돈을 일정 기간 맡기고 만기에 단리 이자를 받는 기본형 정기예금입니다.
+    eligibility: 실명의 개인 및 개인사업자
+    base_rate: "3.30"
+    interest_method: SIMPLE
+    min_term_months: 1
+    max_term_months: 36
+    min_amount: 1000000
+    max_amount: 1000000000
+    preferential_conditions: []
+    early_termination_tiers: *deposit_tiers
+    deposit_protected: true
+    required_disclosures:
+      - *protection_notice
+      - 만기 전 해지 시 약정금리보다 낮은 중도해지이율이 적용되어 이자가 줄어들 수 있습니다.
+      - 표시된 금리는 세전 기준이며, 신규 가입 시점의 고시 금리가 적용됩니다.
+    terms_path: terms/HB-DEP-001.md
+
+  - code: HB-DEP-002
+    name: 한빛 월복리 정기예금(가상)
+    product_type: DEPOSIT
+    summary: 매월 이자를 원금에 더해 복리로 불려 주는 정기예금입니다.
+    eligibility: 실명의 개인
+    base_rate: "3.20"
+    interest_method: MONTHLY_COMPOUND
+    min_term_months: 12
+    max_term_months: 36
+    min_amount: 1000000
+    max_amount: 500000000
+    preferential_conditions: []
+    early_termination_tiers: *deposit_tiers
+    deposit_protected: true
+    required_disclosures:
+      - *protection_notice
+      - 만기 전 해지 시 약정금리보다 낮은 중도해지이율이 단리로 적용되어 복리 효과가 사라집니다.
+      - 표시된 금리는 세전 기준이며, 신규 가입 시점의 고시 금리가 적용됩니다.
+    terms_path: terms/HB-DEP-002.md
+
+  - code: HB-DEP-003
+    name: 한빛 e-특판 정기예금(가상)
+    product_type: DEPOSIT
+    summary: 비대면 채널 전용 단기 특판 정기예금입니다. 우대 조건 충족 시 금리가 더해집니다.
+    eligibility: 실명의 개인(비대면 채널 가입 고객), 1인 1계좌
+    base_rate: "3.50"
+    interest_method: SIMPLE
+    min_term_months: 6
+    max_term_months: 12
+    min_amount: 1000000
+    max_amount: 50000000
+    preferential_conditions:
+      - { description: 한빛 모바일앱(가상) 최초 가입 고객, rate: "0.10" }
+      - { description: 마케팅 정보 수신 동의, rate: "0.10" }
+    early_termination_tiers: *deposit_tiers
+    deposit_protected: true
+    required_disclosures:
+      - *protection_notice
+      - 만기 전 해지 시 약정금리보다 낮은 중도해지이율이 적용되며 우대금리는 적용되지 않습니다.
+      - 우대금리는 만기 해지 시 조건 충족 여부를 확인하여 적용됩니다.
+      - 특판 상품은 판매 한도 소진 시 조기 종료될 수 있습니다.
+    terms_path: terms/HB-DEP-003.md
+
+  # ---------------------------------------------------------------- 정기적금
+  - code: HB-SAV-001
+    name: 한빛 정기적금(가상)
+    product_type: SAVINGS
+    summary: 매월 같은 금액을 납입하고 만기에 원금과 이자를 받는 정액적립식 적금입니다.
+    eligibility: 실명의 개인
+    base_rate: "3.80"
+    interest_method: SIMPLE
+    min_term_months: 12
+    max_term_months: 36
+    min_amount: 100000
+    max_amount: 1000000
+    preferential_conditions:
+      - { description: 급여(가상) 이체 계좌 지정, rate: "0.20" }
+    early_termination_tiers: *deposit_tiers
+    deposit_protected: true
+    required_disclosures:
+      - *protection_notice
+      - 적금 이자는 매월 납입한 금액별로 실제 예치 기간에 대해서만 계산되므로, 월 납입액 × 기간 전체에 연 금리를 곱한 금액보다 적습니다.
+      - 만기 전 해지 시 약정금리보다 낮은 중도해지이율이 적용됩니다.
+      - 납입이 지연되면 만기일이 늦춰지거나 이자가 줄어들 수 있습니다.
+    terms_path: terms/HB-SAV-001.md
+
+  - code: HB-SAV-002
+    name: 한빛 청년 디딤돌적금(가상)
+    product_type: SAVINGS
+    summary: 만 19~34세 청년 고객을 위한 12개월 정액적립식 적금입니다.
+    eligibility: 가입일 기준 만 19세 이상 34세 이하 실명의 개인, 1인 1계좌
+    base_rate: "4.50"
+    interest_method: SIMPLE
+    min_term_months: 12
+    max_term_months: 12
+    min_amount: 10000
+    max_amount: 500000
+    preferential_conditions:
+      - { description: 12회 연속 자동이체 납입, rate: "0.50" }
+      - { description: 한빛 체크카드(가상) 월 30만 원 이상 사용 6개월 이상, rate: "0.50" }
+    early_termination_tiers: *deposit_tiers
+    deposit_protected: true
+    required_disclosures:
+      - *protection_notice
+      - 적금 이자는 매월 납입한 금액별로 실제 예치 기간에 대해서만 계산됩니다.
+      - 우대금리는 만기 해지 시 조건 충족 여부를 확인하여 적용되며, 중도해지 시에는 적용되지 않습니다.
+    terms_path: terms/HB-SAV-002.md
+
+  # ---------------------------------------------------------------- 신용대출
+  - code: HB-LOAN-001
+    name: 한빛 직장인 신용대출(가상)
+    product_type: CREDIT_LOAN
+    summary: 재직 중인 직장인을 위한 무담보 신용대출입니다. 금리와 한도는 심사 결과에 따라 결정됩니다.
+    eligibility: 재직 기간 6개월 이상, 연소득 2,400만 원 이상 직장인(심사 기준 충족 시)
+    base_rate: "6.90"
+    max_rate: "15.90"
+    repayment_methods: [EQUAL_PAYMENT, EQUAL_PRINCIPAL, BULLET]
+    min_term_months: 12
+    max_term_months: 60
+    min_amount: 1000000
+    max_amount: 50000000
+    preferential_conditions:
+      - { description: 급여(가상) 이체 계좌 지정, rate: "0.30" }
+    prepayment_fee_rate: "1.20"
+    prepayment_exemption_days: 1095
+    deposit_protected: false
+    required_disclosures:
+      - 대출 금리와 한도는 신용평가 및 심사 결과에 따라 결정되며, 심사 결과는 신청 후 안내됩니다.
+      - 대출 신청 및 이용은 개인신용평점에 영향을 줄 수 있습니다.
+      - 연체 시 약정금리에 연체가산금리가 더해지며, 신용정보에 등록되어 금융거래가 제한될 수 있습니다.
+      - 대출 실행 후 3년 이내 중도상환 시 중도상환수수료가 부과될 수 있습니다.
+      - 금리는 변동될 수 있습니다.
+    terms_path: terms/HB-LOAN-001.md
+
+  - code: HB-LOAN-002
+    name: 한빛 비상금 소액대출(가상)
+    product_type: CREDIT_LOAN
+    summary: 소액 자금이 급하게 필요한 고객을 위한 소액 신용대출입니다.
+    eligibility: 만 19세 이상, 소득 증빙이 가능한 개인(심사 기준 충족 시)
+    base_rate: "8.90"
+    max_rate: "17.90"
+    repayment_methods: [EQUAL_PAYMENT, BULLET]
+    min_term_months: 12
+    max_term_months: 36
+    min_amount: 500000
+    max_amount: 3000000
+    preferential_conditions: []
+    prepayment_fee_rate: "0"
+    prepayment_exemption_days: 0
+    deposit_protected: false
+    required_disclosures:
+      - 대출 금리와 한도는 신용평가 및 심사 결과에 따라 결정되며, 심사 결과는 신청 후 안내됩니다.
+      - 대출 신청 및 이용은 개인신용평점에 영향을 줄 수 있습니다.
+      - 연체 시 약정금리에 연체가산금리가 더해지며, 신용정보에 등록되어 금융거래가 제한될 수 있습니다.
+      - 금리는 변동될 수 있습니다.
+    terms_path: terms/HB-LOAN-002.md
+
+  # ---------------------------------------------------------------- 정책서민금융 성격(가상)
+  - code: HB-POL-001
+    name: 한빛 희망사다리론(가상)
+    product_type: POLICY_LOAN
+    summary: 저소득·저신용 근로자의 생활안정자금을 지원하는 가상의 서민금융 대출입니다. 가상의 보증기관 보증이 전제됩니다.
+    eligibility: 연소득 3,500만 원 이하 근로자 또는 개인신용평점 하위 구간이면서 연소득 4,500만 원 이하인 근로자(가상 기준, 보증 심사 통과 시)
+    base_rate: "7.90"
+    max_rate: "10.90"
+    repayment_methods: [EQUAL_PAYMENT, EQUAL_PRINCIPAL]
+    min_term_months: 36
+    max_term_months: 60
+    min_amount: 3000000
+    max_amount: 15000000
+    preferential_conditions:
+      - { description: 금융교육(가상) 이수, rate: "0.20" }
+    prepayment_fee_rate: "0"
+    prepayment_exemption_days: 0
+    deposit_protected: false
+    required_disclosures:
+      - 이 상품은 가상의 보증기관 보증 심사를 통과해야 이용할 수 있으며, 심사 결과는 신청 후 안내됩니다.
+      - 대출 금리와 한도는 심사 결과에 따라 결정됩니다.
+      - 대출 신청 및 이용은 개인신용평점에 영향을 줄 수 있습니다.
+      - 연체 시 연체가산금리가 부과되고 보증기관의 대위변제 및 구상권 행사가 이루어질 수 있습니다.
+      - 보증료가 별도로 부과될 수 있습니다.
+    terms_path: terms/HB-POL-001.md
