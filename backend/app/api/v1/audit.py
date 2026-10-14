@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 
-from app.api.deps import CurrentTenant, DbSession
+from app.api.deps import AdminTenant, DbSession
 from app.audit.export import full, summarize, to_csv
 from app.audit.hashchain import verify_chain
 from app.db.models import AuditRecord
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/v1/audit", tags=["audit"])
 
 @router.get("/records")
 def list_records(
-    tenant: CurrentTenant,
+    tenant: AdminTenant,
     session: DbSession,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
@@ -32,7 +32,7 @@ def list_records(
 
 
 @router.get("/records/{request_id}")
-def get_record(request_id: str, tenant: CurrentTenant, session: DbSession) -> dict[str, Any]:
+def get_record(request_id: str, tenant: AdminTenant, session: DbSession) -> dict[str, Any]:
     rec = session.scalar(
         select(AuditRecord).where(
             AuditRecord.tenant_id == tenant.id, AuditRecord.request_id == request_id
@@ -44,7 +44,7 @@ def get_record(request_id: str, tenant: CurrentTenant, session: DbSession) -> di
 
 
 @router.get("/verify")
-def verify(tenant: CurrentTenant, session: DbSession) -> dict[str, Any]:
+def verify(tenant: AdminTenant, session: DbSession) -> dict[str, Any]:
     r = verify_chain(session, tenant.id)
     return {
         "ok": r.ok,
@@ -57,7 +57,7 @@ def verify(tenant: CurrentTenant, session: DbSession) -> dict[str, Any]:
 
 @router.get("/export")
 def export(
-    tenant: CurrentTenant,
+    tenant: AdminTenant,
     session: DbSession,
     fmt: Annotated[Literal["csv", "json"], Query(alias="format")] = "json",
 ) -> Response:

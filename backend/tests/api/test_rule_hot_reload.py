@@ -5,7 +5,7 @@ import shutil
 
 from app.llm.fake import say
 
-from .conftest import H
+from .conftest import AH, H
 
 ANSWER = "이 예금은 고객님께 최고의 선택입니다."
 NEW_TERM = """\
@@ -39,4 +39,4 @@ def test_added_forbidden_term_applies_without_restart(make_client, settings, tmp
 
     chat = client.post("/v1/chat", json={"message": "예금 어때요?"}, headers=H).json()
     assert chat["status"] == "BLOCKED"
-    assert client.get("/v1/rules", headers=H).json()["digest"] == after["rules_digest"]
+    assert client.get("/v1/rules", headers=AH).json()["digest"] == after["rules_digest"]

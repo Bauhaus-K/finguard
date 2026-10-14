@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/* 디자인 토큰. 차트 색은 dataviz 기준 팔레트(검증 완료)를 사용한다. */
+:root {
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --raised: #ffffff;
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #6f6d68;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+  --accent: #2a78d6;
+  --accent-ink: #1d5ea8;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-wash: #e7f6e7;
+  --warning-wash: #fff5df;
+  --serious-wash: #fdeee8;
+  --critical-wash: #fbe9e9;
+  --code: #f2f1ed;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --raised: #222220;
+    --ink: #f0efec;
+    --ink2: #c3c2b7;
+    --muted: #9a9890;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.1);
+    --accent: #3987e5;
+    --accent-ink: #7fb2f0;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --good-wash: #12260f;
+    --warning-wash: #2a2210;
+    --serious-wash: #2b1a12;
+    --critical-wash: #2c1414;
+    --code: #262624;
+  }
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-muted: var(--muted);
+  --color-grid: var(--grid);
+  --color-axis: var(--axis);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-serious: var(--serious);
+  --color-critical: var(--critical);
+  --color-good-wash: var(--good-wash);
+  --color-warning-wash: var(--warning-wash);
+  --color-serious-wash: var(--serious-wash);
+  --color-critical-wash: var(--critical-wash);
+  --color-code: var(--code);
+  --font-sans: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+
+html,
+body {
+  background: var(--page);
+  color: var(--ink);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

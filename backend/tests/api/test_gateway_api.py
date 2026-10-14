@@ -1,4 +1,4 @@
-from .conftest import H
+from .conftest import AH, H
 
 
 def check(client, **body):
@@ -43,7 +43,7 @@ def test_gateway_check_audited_and_masked(make_client):
     client, _ = make_client()
     body = check(client, answer="번호 010-1234-5678 확인", user_message="900101-1234567").json()
     assert body["status"] == "AUTO_FIXED"
-    rec = client.get(f"/v1/audit/records/{body['request_id']}", headers=H).json()
+    rec = client.get(f"/v1/audit/records/{body['request_id']}", headers=AH).json()
     assert rec["mode"] == "gateway_only"
     dumped = str(rec)
     assert "010-1234-5678" not in dumped and "900101-1234567" not in dumped

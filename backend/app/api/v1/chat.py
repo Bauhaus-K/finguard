@@ -30,6 +30,7 @@ class ChatResponse(BaseModel):
     mode: str
     status: str  # PASS / AUTO_FIXED / BLOCKED / ESCALATED
     answer: str
+    masked_message: str  # 개인정보를 가린 고객 메시지 (화면에 이 값으로 다시 표시)
     escalation: dict[str, str] | None = None
     citations: list[dict[str, str]]
     pii_detected: dict[str, int]
@@ -73,6 +74,7 @@ def to_response(outcome: ChatOutcome) -> ChatResponse:
         mode=outcome.mode,
         status=outcome.status,
         answer=outcome.answer,
+        masked_message=outcome.attempts[0].agent.masked_input,
         escalation=outcome.escalation,
         citations=agent.citations,
         pii_detected=outcome.attempts[0].agent.pii_detected,

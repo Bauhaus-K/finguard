@@ -228,7 +228,13 @@ def audit_payload(outcome: ChatOutcome, services: Services) -> dict[str, Any]:
     return {
         "mode": outcome.mode,
         "conversation_id": outcome.conversation_id,
-        "model": services.settings.llm_model,
+        # 실제 응답한 공급자·모델 (스크립트 모드는 실제 LLM 이 아님)
+        "llm_provider": services.settings.llm_provider,
+        "model": (
+            services.settings.llm_model
+            if services.settings.llm_provider == "anthropic"
+            else services.settings.llm_provider
+        ),
         "input": {"user_message": first.masked_input, "pii_detected": first.pii_detected},
         "attempts": [
             {

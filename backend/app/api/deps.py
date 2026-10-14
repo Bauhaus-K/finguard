@@ -26,3 +26,21 @@ def get_tenant(
 
 
 CurrentTenant = Annotated[Tenant, Depends(get_tenant)]
+
+
+def get_admin_tenant(
+    session: DbSession,
+    x_admin_key: Annotated[str | None, Header()] = None,
+) -> Tenant:
+    """감사 로그·규칙·지표 등 관리 기능. 상담용 API 키로는 접근할 수 없다."""
+    if not x_admin_key:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "X-Admin-Key 헤더가 필요합니다")
+    tenant = session.scalar(
+        select(Tenant).where(Tenant.admin_key_hash == hash_api_key(x_admin_key))
+    )
+    if tenant is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "유효하지 않은 관리자 키입니다")
+    return tenant
+
+
+AdminTenant = Annotated[Tenant, Depends(get_admin_tenant)]

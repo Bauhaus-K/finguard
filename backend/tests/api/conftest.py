@@ -9,7 +9,9 @@ from app.main import app
 from app.services import build_services, get_services
 
 KEY = "test-key"
+ADMIN_KEY = "test-admin-key"
 H = {"X-API-Key": KEY}
+AH = {"X-Admin-Key": ADMIN_KEY}
 DEPOSIT = (
     "calculate_deposit",
     dict(
@@ -27,7 +29,7 @@ DEPOSIT = (
 def make_client(engine, catalog, tmp_path):
     from app.db.seed import seed
 
-    settings = Settings(_env_file=None, demo_api_key=KEY)
+    settings = Settings(_env_file=None, demo_api_key=KEY, demo_admin_key=ADMIN_KEY)
     with sessionmaker(engine)() as s:
         seed(s, catalog, settings)
 

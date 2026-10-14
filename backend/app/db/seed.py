@@ -46,12 +46,21 @@ def seed(session: Session, catalog: CatalogSpec, settings: Settings) -> dict[str
     tenant_spec = catalog.tenant
     tenant = session.get(Tenant, tenant_spec.id)
     key_hash = hash_api_key(settings.demo_api_key.get_secret_value())
+    admin_hash = hash_api_key(settings.demo_admin_key.get_secret_value())
+    if key_hash == admin_hash:
+        raise ValueError("DEMO_API_KEY 와 DEMO_ADMIN_KEY 는 달라야 합니다")
     if tenant is None:
-        tenant = Tenant(id=tenant_spec.id, name=tenant_spec.name, api_key_hash=key_hash)
+        tenant = Tenant(
+            id=tenant_spec.id,
+            name=tenant_spec.name,
+            api_key_hash=key_hash,
+            admin_key_hash=admin_hash,
+        )
         session.add(tenant)
     else:
         tenant.name = tenant_spec.name
         tenant.api_key_hash = key_hash
+        tenant.admin_key_hash = admin_hash
 
     existing = {
         p.code: p

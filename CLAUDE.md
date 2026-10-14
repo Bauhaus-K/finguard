@@ -54,6 +54,16 @@ LLM 답변은 고객에게 나가기 전에 반드시 게이트웨이(수치·�
   `GET /v1/audit/records|records/{request_id}|verify|export?format=csv|json`, `GET /v1/rules`.
 - 감사 레코드는 절대 UPDATE/DELETE 하지 않는다. 스키마 변경이 필요하면 새 레코드/새 컬럼으로.
 
+## 대시보드 (Phase 4, `frontend/`)
+- Next.js 15 App Router + TS + Tailwind 4. 화면: /chat(고객), /audit(+상세 trace), /rules(+게이트웨이 단독 검사), /metrics, /guidelines.
+- 브라우저는 `/api/backend/v1/...` 만 호출. Next 서버 프록시(`app/api/backend/[...path]/route.ts`)가 허용 목록 경로에만 키를 붙인다.
+  `FINGUARD_API_KEY`(상담·게이트웨이) / `FINGUARD_ADMIN_KEY`(감사·규칙·지표·가이드라인). 키를 클라이언트 코드에 넣지 않는다.
+- 백엔드 관리 API 는 `X-Admin-Key`(테넌트별 admin_key_hash). 상담 키로는 접근 불가.
+- 상태 표시는 색 + 아이콘 + 글자. 차트 색은 dataviz 기준 팔레트(검증 완료) — 새 색을 추가하면 검증 스크립트로 확인.
+- `LLM_PROVIDER=scripted`: 오프라인 리허설용 대본(실제 LLM 아님). 화면에 배너가 뜨고 감사 로그에도 scripted 로 기록된다. 수치는 실제 도구에서 나온다.
+- `data/guideline_mapping.yaml`: 원칙 항목은 placeholder(TODO). 원문 확인 전에는 내용을 채우지 않는다. system_features 는 실제 기능만.
+- E2E: `make e2e` (스크립트 LLM, `frontend/.e2e/` 에 격리 DB·규칙 복사본). 데모 시나리오 1~6 + 모바일 폭 검사.
+
 ## 계산 관행 (기본값, 변경 시 formula_id 버전 올림)
 - 예금 단리: 원금 × 연이율 × 개월/12 · 월복리: 원금 × (1+연이율/12)^n − 원금
 - 적금: 정액 월납, k회차 납입금은 (n−k+1)개월 단리
@@ -72,6 +82,10 @@ make lint       # ruff check + format --check
 make dev        # uvicorn :8000
 make db-up      # docker compose PostgreSQL+pgvector
 make golden-manual  # 골든셋 10개 실제 LLM 실행(게이트웨이 포함) → eval/reports/phase2_manual_*.md (API 키 필요)
+make web-dev     # 대시보드 :3000 (make dev 와 함께)
+make web-check   # 대시보드 타입 검사 + 빌드
+make e2e         # 데모 시나리오 브라우저 E2E
+make demo-offline  # API 키 없이 스크립트 LLM 으로 백엔드 실행(리허설)
 make eval       # (Phase 5)
 ```
 
@@ -85,7 +99,7 @@ backend/app/compliance 수치 추출·출처 대조        backend/app/api      
 backend/app/gateway   검사 엔진·플러그인·규칙   backend/app/audit    해시 체인·내보내기
 backend/app/chat_service.py 에이전트+게이트웨이+감사 오케스트레이션
 data/products/catalog.yaml  상품 원본           data/terms/*.md      가상 약관
-rules/                 게이트웨이 규칙 YAML       frontend/            Next.js (Phase 4)
+rules/                 게이트웨이 규칙 YAML       frontend/            Next.js 대시보드
 eval/                  골든셋·레드팀(Phase 5)
 ```
 
@@ -93,5 +107,5 @@ eval/                  골든셋·레드팀(Phase 5)
 - [x] Phase 1 — 기반 (구조, 카탈로그·약관, 계산 엔진, 테스트)
 - [x] Phase 2 — 에이전트 (실제 LLM 골든셋 수동 실행은 API 키 환경에서 `make golden-manual` 로 확인 필요)
 - [x] Phase 3 — 게이트웨이 + 감사 로그
-- [ ] Phase 4 — 대시보드
+- [x] Phase 4 — 대시보드
 - [ ] Phase 5 — 평가 및 데모 준비

@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # 데모 테넌트
     demo_tenant_id: str = "demo"
     demo_api_key: SecretStr = SecretStr("demo-key-change-me")
+    demo_admin_key: SecretStr = SecretStr("demo-admin-key-change-me")
 
 
 @lru_cache

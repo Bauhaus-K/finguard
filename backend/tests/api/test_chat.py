@@ -1,7 +1,7 @@
 from app.llm.base import SystemNoteTurn
 from app.llm.fake import call, say
 
-from .conftest import DEPOSIT, H
+from .conftest import AH, DEPOSIT, H
 
 GOOD = (
     "한빛 정기예금(가상)(HB-DEP-001) 기준 연 3.30%로 12개월 예치하면 세후 이자는 279,180원입니다."
@@ -14,7 +14,7 @@ def post(client, message, **kw):
 
 
 def audit(client, request_id):
-    return client.get(f"/v1/audit/records/{request_id}", headers=H).json()
+    return client.get(f"/v1/audit/records/{request_id}", headers=AH).json()
 
 
 def test_auth_required(make_client):
@@ -106,9 +106,10 @@ def test_pii_masked_everywhere(make_client):
     client, services = make_client([say("개인정보는 입력하지 않으셔도 됩니다.")])
     body = post(client, "제 주민번호는 900101-1234567 이에요").json()
     assert body["pii_detected"] == {"RRN": 1}
+    assert body["masked_message"] == "제 주민번호는 [주민등록번호] 이에요"
     sent = services.llm.calls[0][1][-1].text
     assert "900101" not in sent
-    export = client.get("/v1/audit/export?format=json", headers=H).text
+    export = client.get("/v1/audit/export?format=json", headers=AH).text
     assert "900101-1234567" not in export and "[주민등록번호]" in export
 
 

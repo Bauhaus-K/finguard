@@ -41,12 +41,20 @@ def run(inp: GatewayInput, text: str, rules: "Rules", ctx: "CheckContext") -> Ch
         for d in cfg.required[t]:
             if any(re.search(p, text) for p in d.present_patterns):
                 findings.append(
-                    Finding(code=f"{t}.{d.id}", message="필수 고지 포함", severity="info")
+                    Finding(
+                        code=f"{t}.{d.id}", message=f"필수 고지 포함 ({t}.{d.id})", severity="info"
+                    )
                 )
                 continue
             if d.text not in missing:
                 missing.append(d.text)
-            findings.append(Finding(code=f"{t}.{d.id}", message="필수 고지 누락 → 자동 첨부"))
+            findings.append(
+                Finding(
+                    code=f"{t}.{d.id}",
+                    message=f"필수 고지 누락 → 자동 첨부 ({t}.{d.id})",
+                    excerpt=d.text,
+                )
+            )
     if not missing:
         return CheckResult(check=ID, outcome=Outcome.PASS, findings=findings)
     appended = text.rstrip() + "\n\n" + cfg.header + "\n" + "\n".join(f"- {m}" for m in missing)

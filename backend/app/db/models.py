@@ -41,8 +41,9 @@ class Tenant(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
-    # API 키는 SHA-256 해시만 저장한다
+    # API 키는 SHA-256 해시만 저장한다. api_key: 상담·게이트웨이, admin_key: 감사 로그·규칙·지표 조회
     api_key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    admin_key_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
