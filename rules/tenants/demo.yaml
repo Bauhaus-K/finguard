@@ -1,0 +1,11 @@
+# 데모 테넌트(한빛저축은행(가상)) 규칙 오버라이드.
+# default.yaml 위에 병합된다. 병합 규칙은 default.yaml 머리말 참고.
+#
+# 데모 시나리오 6 — 금지 표현 추가 예시 (주석을 풀면 코드 수정 없이 다음 요청부터 반영):
+# forbidden_expressions:
+#   terms:
+#     - id: best_choice
+#       label: 최선 단정
+#       pattern: '최고의\s*선택'
+#       action: block
+{}

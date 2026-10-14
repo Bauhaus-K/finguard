@@ -1,6 +1,7 @@
 import pytest
 
-from app.agent.loop import ESCALATION_MESSAGE, AgentStatus, run_agent, trace_record
+from app.agent.loop import ESCALATION_MESSAGE, AgentStatus, run_agent
+from app.agent.trace import mask_deep
 from app.compliance.provenance import check_provenance
 from app.llm.base import AssistantTurn, LLMError, StopKind, ToolResultsTurn, UserTurn
 from app.llm.fake import FakeLLM, call, say, stop
@@ -70,7 +71,7 @@ def test_pii_masked_before_llm(tool_ctx, conversation):
     assert isinstance(sent, UserTurn)
     assert "900101" not in sent.text and "[주민등록번호]" in sent.text
     assert r.pii_detected == {"RRN": 1}
-    assert "900101" not in str(trace_record(r))
+    assert "900101" not in str(mask_deep(r.trace.model_dump(mode="json")))
 
 
 def test_history_is_replayed_as_text(tool_ctx, conversation):
@@ -177,3 +178,20 @@ def test_conversation_store_eviction_and_history_cap():
     for i in range(MAX_HISTORY_MESSAGES + 5):
         a.append("user", str(i))
     assert len(a.history) == MAX_HISTORY_MESSAGES
+
+
+def test_system_note_appended_after_user_turn(tool_ctx, conversation):
+    from app.llm.base import SystemNoteTurn
+
+    llm = FakeLLM([say("네")])
+    r = run_agent(
+        llm=llm,
+        ctx=tool_ctx,
+        conversation=conversation,
+        user_message="질문",
+        max_steps=3,
+        system_note="다시 작성하세요",
+    )
+    turns = llm.calls[0][1]
+    assert isinstance(turns[-2], UserTurn) and turns[-1] == SystemNoteTurn("다시 작성하세요")
+    assert r.trace.events[1].kind == "system_note"

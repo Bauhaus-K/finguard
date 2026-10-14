@@ -1,4 +1,4 @@
-"""프로세스 단위 싱글턴(LLM 어댑터, 검색기, 대화 저장소, trace 기록기).
+"""프로세스 단위 싱글턴(LLM 어댑터, 검색기, 대화 저장소, 규칙 저장소).
 
 FastAPI 의존성으로 주입하며 테스트에서는 dependency_overrides 로 교체한다.
 """
@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from app.agent.state import ConversationStore
-from app.agent.trace import TraceLogger
 from app.config import Settings, get_settings
+from app.gateway.rules import RulesRepository
 from app.llm.base import LLMAdapter
 from app.llm.factory import build_llm
 from app.rag import BM25Retriever, Retriever, load_terms_chunks
@@ -20,7 +20,7 @@ class Services:
     llm: LLMAdapter
     retriever: Retriever
     conversations: ConversationStore
-    trace_logger: TraceLogger
+    rules: RulesRepository
 
 
 def build_services(settings: Settings, llm: LLMAdapter | None = None) -> Services:
@@ -29,7 +29,7 @@ def build_services(settings: Settings, llm: LLMAdapter | None = None) -> Service
         llm=llm or build_llm(settings),
         retriever=BM25Retriever(load_terms_chunks(settings.data_dir / "terms")),
         conversations=ConversationStore(),
-        trace_logger=TraceLogger(settings.trace_log_path),
+        rules=RulesRepository(settings.rules_dir),
     )
 
 

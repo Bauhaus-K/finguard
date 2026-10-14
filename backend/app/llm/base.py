@@ -5,6 +5,7 @@
 - AssistantTurn: 모델 응답. `raw` 에 공급자 원본 블록을 보관해 같은 요청의 다음 호출에
   변경 없이 되돌려 보낸다(예: Anthropic thinking 블록은 원본 그대로 재전송해야 한다).
 - ToolResultsTurn: 한 assistant turn 의 모든 도구 호출 결과(한 메시지로 묶어서 반환)
+- SystemNoteTurn: 운영자(시스템) 메모. 공급자가 지원하는 대화 중간 system 메시지로 전달
 """
 
 from dataclasses import dataclass, field
@@ -58,7 +59,14 @@ class ToolResultsTurn:
     results: list[ToolResult]
 
 
-Turn = UserTurn | AssistantTurn | ToolResultsTurn
+@dataclass(frozen=True)
+class SystemNoteTurn:
+    """대화 중간의 운영자 지시(예: 게이트웨이 차단 후 재생성 피드백). 사용자 turn 바로 뒤에 둔다."""
+
+    text: str
+
+
+Turn = UserTurn | AssistantTurn | ToolResultsTurn | SystemNoteTurn
 
 
 @dataclass(frozen=True)

@@ -115,3 +115,7 @@ class AuditRecord(Base):
     prev_hash: Mapped[str] = mapped_column(String(64))
     record_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+# 감사 로그 append-only 장치 등록 (순환 import 를 피하려고 파일 끝에서 로드)
+from app.db import audit_guards  # noqa: E402, F401

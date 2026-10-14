@@ -1,8 +1,8 @@
-"""골든셋 수동 실행 (Phase 2 수용 기준 확인용).
+"""골든셋 수동 실행 (Phase 2 수용 기준 확인용, Phase 3 부터 게이트웨이 포함).
 
-실제 LLM 으로 골든셋 질문을 돌리고, 답변에 나온 모든 단위 수치가 같은 요청 안의 도구 결과
-(또는 고객 입력)에서 나왔는지 출처를 표시한다. 결과는 eval/reports/phase2_manual_{timestamp}.md 에 저장되고
-각 요청의 전체 trace 는 TRACE_LOG_PATH(기본 backend/logs/traces.jsonl)에 남는다.
+실제 LLM 으로 골든셋 질문을 돌리고(에이전트 → 게이트웨이 → 감사 로그), LLM 원본 답변에 나온 모든 단위 수치가
+같은 요청 안의 도구 결과(또는 고객 입력)에서 나왔는지 출처를 표시한다. 게이트웨이 판정과 최종 답변도 함께 적는다.
+결과는 eval/reports/phase2_manual_{timestamp}.md 에 저장되고, 전체 trace 는 감사 로그(DB)에 남는다.
 
 사용: uv run python -m scripts.run_golden [--limit 10] [--ids G001,G005]
 필요: ANTHROPIC_API_KEY(.env), make seed 완료
@@ -17,9 +17,9 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from app.agent.loop import AgentResult, run_agent, trace_record
+from app.agent.loop import AgentResult
 from app.agent.state import ConversationStore
-from app.agent.tools import ToolContext
+from app.chat_service import handle_chat
 from app.compliance.numbers import extract_numbers
 from app.config import REPO_ROOT, get_settings
 from app.db.session import get_engine
@@ -67,21 +67,15 @@ def main() -> int:
             conv = store.get_or_create(settings.demo_tenant_id, None)
             lines.append(f"## {case['id']} ({case['category']})")
             for turn_no, message in enumerate(case["turns"], 1):
-                ctx = ToolContext(
-                    session, settings.demo_tenant_id, settings, services.retriever, conv
-                )
-                result = run_agent(
-                    llm=services.llm,
-                    ctx=ctx,
+                outcome = handle_chat(
+                    services=services,
+                    session=session,
+                    tenant_id=settings.demo_tenant_id,
                     conversation=conv,
-                    user_message=message,
-                    max_steps=settings.agent_max_steps,
+                    message=message,
                 )
-                conv.append("user", result.masked_input)
-                conv.append("assistant", result.answer)
-                services.trace_logger.write(
-                    trace_record(result, {"golden_id": case["id"], "turn": turn_no})
-                )
+                # 재생성 전 첫 원본 답변을 기준으로 수치 출처를 본다
+                result = outcome.attempts[0].agent
 
                 origins = _origins(result)
                 numbers = extract_numbers(result.answer)
@@ -95,10 +89,11 @@ def main() -> int:
                     f"- request_id: `{result.request_id}` / 상태: **{result.status}**"
                     + (f" ({result.escalation})" if result.escalation else ""),
                     f"- 호출 도구: {', '.join(result.tool_names) or '없음'}",
+                    f"- 게이트웨이 최종 판정: **{outcome.status}** (시도 {len(outcome.attempts)}회)",
                     f"- LLM 호출 {result.llm_calls}회, 토큰 in={result.usage.input_tokens} "
                     f"out={result.usage.output_tokens} cache_read={result.usage.cache_read_input_tokens}",
                     "",
-                    "**답변**",
+                    "**LLM 원본 답변 (첫 시도)**",
                     "",
                     *[f"> {line}" for line in result.answer.splitlines()],
                     "",
@@ -110,9 +105,15 @@ def main() -> int:
                     lines.append(f"| {n.text} | {n.unit} {n.value} | {src} |")
                 if not numbers:
                     lines.append("| (수치 없음) | | |")
-                lines.append("")
+                lines += [
+                    "",
+                    "**고객에게 전달된 최종 답변**",
+                    "",
+                    *[f"> {x}" for x in outcome.answer.splitlines()],
+                    "",
+                ]
                 print(
-                    f"{case['id']} turn {turn_no}: {result.status} numbers={len(numbers)} unsourced={len(unsourced)}"
+                    f"{case['id']} turn {turn_no}: {outcome.status} numbers={len(numbers)} unsourced={len(unsourced)}"
                 )
 
     lines.insert(4, f"- 결과: 수치 {total_numbers}개 중 출처 없음 **{total_unsourced}개**")

@@ -34,14 +34,25 @@ LLM 답변은 고객에게 나가기 전에 반드시 게이트웨이(수치·�
 - 테스트는 `FakeLLM`(app/llm/fake.py)으로 결정적으로 작성. 실제 API 호출 테스트는 만들지 않는다.
 
 ## 에이전트 (Phase 2)
-- `POST /v1/chat` (헤더 `X-API-Key` → 테넌트). Phase 3 전까지는 `mode=debug` 만 허용(게이트웨이 미적용 답변은 고객용으로 내보내지 않음).
+- `POST /v1/chat` (헤더 `X-API-Key` → 테넌트). standard = 게이트웨이 거친 최종 답변, debug = 원본 답변 + 판정·trace(재생성 없음, `ALLOW_DEBUG_MODE`).
 - 도구 8개: search_products, get_product_detail, search_terms, calculate_deposit/savings/loan, record_suitability_check, escalate_to_human.
   모든 도구는 payload + figures(출처 수치) + citations 를 반환. 수치 검증은 같은 요청의 figures 와 고객 입력 수치만 출처로 인정.
 - 입력은 LLM 에 보내기 전에 PII 마스킹(`app/privacy/pii.py`). trace 는 저장 직전에 다시 마스킹.
 - 대화 이력은 '고객에게 전달된 텍스트'만 저장(프로세스 메모리). 같은 요청 안에서는 thinking 포함 원본 블록을 그대로 재전송.
 - LLM: 기본 `claude-sonnet-5-5`, adaptive thinking, effort=`LLM_EFFORT`(기본 medium), strict tools, prompt caching, refusal 시 서버측 fallback.
 - 어떤 오류·거절·길이 초과·최대 단계 초과도 상담원 이관(ESCALATED)으로 끝난다.
-- RAG: 약관을 조항/FAQ 단위로 청킹, BM25(문자 bigram). pgvector 검색기는 미구현(임베딩 모델 결정 필요).
+- RAG: 약관을 조항/FAQ 단위로 청킹, BM25(문자 bigram). MVP 동안 BM25 유지(결정됨). pgvector 는 MVP 이후.
+
+## 게이트웨이 + 감사 로그 (Phase 3)
+- 흐름(`app/chat_service.py`): 에이전트 → 게이트웨이 → 수치 검증 실패면 피드백(대화 중간 system 메시지)과 함께 재생성 1회 → 그래도 실패면 이관 → 감사 로그.
+- 검사 플러그인 `app/gateway/checks/*`: `run(inp, text, rules, ctx) -> CheckResult`. 순서·설정은 `rules/default.yaml` 의 `order`.
+  pii(마스킹) → scope(이관) → numeric(차단·재생성) → forbidden_expressions(수정/차단, LLM judge 보조·기본 off) → suitability(적합성 질문으로 대체) → disclosures(자동 첨부).
+- 판정: ESCALATE 하나라도 → ESCALATED / FAIL → BLOCKED / FIXED → AUTO_FIXED / 그 외 PASS. 검사 예외·규칙 로딩 실패 → ESCALATED.
+- 규칙: `rules/default.yaml` + `rules/tenants/{tenant}.yaml` (id 기준 병합, `remove: true` 삭제). 파일 수정 시각이 바뀌면 다음 요청부터 반영. 새 규칙 항목은 반드시 Pydantic 스키마(`app/gateway/rules.py`)에도 추가.
+- `POST /v1/gateway/check`: 게이트웨이 단독(타사 챗봇용). 출처는 `sources`/`context_texts` 로 받는다.
+- 감사 로그(`app/audit`): 테넌트별 해시 체인, append-only(ORM 이벤트 + DB 트리거 `app/db/audit_guards.py`). payload 는 저장 전 PII 재마스킹.
+  `GET /v1/audit/records|records/{request_id}|verify|export?format=csv|json`, `GET /v1/rules`.
+- 감사 레코드는 절대 UPDATE/DELETE 하지 않는다. 스키마 변경이 필요하면 새 레코드/새 컬럼으로.
 
 ## 계산 관행 (기본값, 변경 시 formula_id 버전 올림)
 - 예금 단리: 원금 × 연이율 × 개월/12 · 월복리: 원금 × (1+연이율/12)^n − 원금
@@ -60,7 +71,7 @@ make test-all   # 전체 커버리지 리포트
 make lint       # ruff check + format --check
 make dev        # uvicorn :8000
 make db-up      # docker compose PostgreSQL+pgvector
-make golden-manual  # 골든셋 10개 실제 LLM 실행 → eval/reports/phase2_manual_*.md (API 키 필요)
+make golden-manual  # 골든셋 10개 실제 LLM 실행(게이트웨이 포함) → eval/reports/phase2_manual_*.md (API 키 필요)
 make eval       # (Phase 5)
 ```
 
@@ -71,15 +82,16 @@ backend/app/catalog.py 카탈로그 YAML 스키마      backend/migrations   Ale
 backend/app/llm       LLM 어댑터(Anthropic, Fake)  backend/app/agent    도구·루프·프롬프트·trace
 backend/app/rag       약관 청킹·BM25             backend/app/privacy  PII 마스킹
 backend/app/compliance 수치 추출·출처 대조        backend/app/api      FastAPI 라우터
-backend/app/{gateway,audit} (Phase 3)
+backend/app/gateway   검사 엔진·플러그인·규칙   backend/app/audit    해시 체인·내보내기
+backend/app/chat_service.py 에이전트+게이트웨이+감사 오케스트레이션
 data/products/catalog.yaml  상품 원본           data/terms/*.md      가상 약관
-rules/                 게이트웨이 규칙(Phase 3)  frontend/            Next.js (Phase 4)
+rules/                 게이트웨이 규칙 YAML       frontend/            Next.js (Phase 4)
 eval/                  골든셋·레드팀(Phase 5)
 ```
 
 ## 진행 상황
 - [x] Phase 1 — 기반 (구조, 카탈로그·약관, 계산 엔진, 테스트)
 - [x] Phase 2 — 에이전트 (실제 LLM 골든셋 수동 실행은 API 키 환경에서 `make golden-manual` 로 확인 필요)
-- [ ] Phase 3 — 게이트웨이 + 감사 로그
+- [x] Phase 3 — 게이트웨이 + 감사 로그
 - [ ] Phase 4 — 대시보드
 - [ ] Phase 5 — 평가 및 데모 준비

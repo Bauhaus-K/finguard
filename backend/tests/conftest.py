@@ -64,3 +64,22 @@ def tool_ctx(seeded_session, settings, retriever, conversation):
         retriever=retriever,
         conversation=conversation,
     )
+
+
+@pytest.fixture(scope="session")
+def rules(settings):
+    from app.gateway.rules import RulesRepository
+
+    loaded = RulesRepository(settings.rules_dir).get("demo")
+    assert loaded.error is None, loaded.error
+    return loaded.rules
+
+
+@pytest.fixture(scope="session")
+def products(catalog):
+    from app.gateway.types import ProductRef
+
+    return [
+        ProductRef(code=p.code, name=p.name, product_type=p.product_type.value)
+        for p in catalog.products
+    ]

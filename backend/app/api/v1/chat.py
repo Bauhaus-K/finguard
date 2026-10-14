@@ -1,18 +1,17 @@
-"""POST /v1/chat — 상담 에이전트.
+"""POST /v1/chat — 상담 에이전트 + 컴플라이언스 게이트웨이.
 
-Phase 2: 컴플라이언스 게이트웨이가 아직 없으므로 mode=debug(게이트웨이 미적용 원본 답변 + trace)만 허용한다.
-게이트웨이를 거치지 않은 답변을 '고객용' 으로 내보내지 않는다(fail-safe 원칙).
+- mode=standard: 게이트웨이를 거친 최종 답변만 반환한다.
+- mode=debug: 게이트웨이 판정은 그대로 수행·기록하되 원본(LLM) 답변을 반환하고, trace 와 수치 출처를 함께 보여준다.
+모든 요청은 해시 체인 감사 로그에 남는다.
 """
 
-import time
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.agent.loop import AgentResult, run_agent, trace_record
-from app.agent.tools import ToolContext
 from app.api.deps import CurrentTenant, DbSession
+from app.chat_service import ChatOutcome, handle_chat
 from app.compliance.provenance import check_provenance
 from app.services import Services, get_services
 
@@ -25,38 +24,76 @@ class ChatRequest(BaseModel):
     mode: Literal["standard", "debug"] = "standard"
 
 
-class ProvenanceItem(BaseModel):
-    text: str
-    unit: str
-    value: str
-
-
 class ChatResponse(BaseModel):
     request_id: str
     conversation_id: str
     mode: str
-    status: str
+    status: str  # PASS / AUTO_FIXED / BLOCKED / ESCALATED
     answer: str
-    gateway: dict[str, Any] | None = None  # Phase 3
     escalation: dict[str, str] | None = None
     citations: list[dict[str, str]]
     pii_detected: dict[str, int]
+    gateway: dict[str, Any] | None = None
+    attempts: int
+    latency_ms: int
     # --- debug 전용 ---
-    provenance: dict[str, list[ProvenanceItem]] | None = None
+    gateway_answer: str | None = None  # standard 모드였다면 고객이 받았을 답변
+    provenance: dict[str, list[dict[str, str]]] | None = None
     tools_called: list[str] | None = None
     usage: dict[str, int] | None = None
     llm_calls: int | None = None
-    latency_ms: int | None = None
     trace: list[dict[str, Any]] | None = None
 
 
-def _provenance(result: AgentResult) -> dict[str, list[ProvenanceItem]]:
-    report = check_provenance(result.answer, result.source_figures)
+def gateway_summary(outcome: ChatOutcome) -> dict[str, Any] | None:
+    g = outcome.last.gateway
+    if g is None:
+        return None
+    return {
+        "status": g.status,
+        "retryable": g.retryable,
+        "rules_version": g.rules_version,
+        "checks": [
+            {
+                "check": c.check,
+                "outcome": c.outcome,
+                "action": c.action,
+                "findings": [f.model_dump() for f in c.findings],
+            }
+            for c in g.checks
+        ],
+    }
 
-    def items(ns):
-        return [ProvenanceItem(text=n.text, unit=n.unit, value=str(n.value)) for n in ns]
 
-    return {"checked": items(report.checked), "unsourced": items(report.unsourced)}
+def to_response(outcome: ChatOutcome) -> ChatResponse:
+    agent = outcome.last.agent
+    resp = ChatResponse(
+        request_id=outcome.request_id,
+        conversation_id=outcome.conversation_id,
+        mode=outcome.mode,
+        status=outcome.status,
+        answer=outcome.answer,
+        escalation=outcome.escalation,
+        citations=agent.citations,
+        pii_detected=outcome.attempts[0].agent.pii_detected,
+        gateway=gateway_summary(outcome),
+        attempts=len(outcome.attempts),
+        latency_ms=outcome.latency_ms,
+    )
+    if outcome.mode == "debug":
+        report = check_provenance(agent.answer, agent.source_figures)
+
+        def items(ns):
+            return [{"text": n.text, "unit": n.unit, "value": str(n.value)} for n in ns]
+
+        g = outcome.last.gateway
+        resp.gateway_answer = g.final_answer if g else None
+        resp.provenance = {"checked": items(report.checked), "unsourced": items(report.unsourced)}
+        resp.tools_called = agent.tool_names
+        resp.usage = vars(outcome.usage)
+        resp.llm_calls = sum(a.agent.llm_calls for a in outcome.attempts)
+        resp.trace = [e.model_dump(mode="json") for e in agent.trace.events]
+    return resp
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -66,58 +103,15 @@ def chat(
     session: DbSession,
     services: Annotated[Services, Depends(get_services)],
 ) -> ChatResponse:
-    if req.mode == "standard":
-        raise HTTPException(
-            status.HTTP_501_NOT_IMPLEMENTED,
-            "컴플라이언스 게이트웨이가 아직 적용되지 않았습니다(Phase 3). 현재는 mode=debug 만 사용할 수 있습니다.",
-        )
-    if not services.settings.allow_debug_mode:
+    if req.mode == "debug" and not services.settings.allow_debug_mode:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "debug 모드가 비활성화되어 있습니다")
-
     conversation = services.conversations.get_or_create(tenant.id, req.conversation_id)
-    ctx = ToolContext(
+    outcome = handle_chat(
+        services=services,
         session=session,
         tenant_id=tenant.id,
-        settings=services.settings,
-        retriever=services.retriever,
         conversation=conversation,
-    )
-    t0 = time.perf_counter()
-    result = run_agent(
-        llm=services.llm,
-        ctx=ctx,
-        conversation=conversation,
-        user_message=req.message,
-        max_steps=services.settings.agent_max_steps,
-    )
-    latency_ms = int((time.perf_counter() - t0) * 1000)
-    conversation.append("user", result.masked_input)
-    conversation.append("assistant", result.answer)
-
-    provenance = _provenance(result)
-    services.trace_logger.write(
-        trace_record(
-            result,
-            {
-                "mode": req.mode,
-                "latency_ms": latency_ms,
-                "provenance": {k: [i.model_dump() for i in v] for k, v in provenance.items()},
-            },
-        )
-    )
-    return ChatResponse(
-        request_id=result.request_id,
-        conversation_id=result.conversation_id,
+        message=req.message,
         mode=req.mode,
-        status=result.status,
-        answer=result.answer,
-        escalation=result.escalation,
-        citations=result.citations,
-        pii_detected=result.pii_detected,
-        provenance=provenance,
-        tools_called=result.tool_names,
-        usage=vars(result.usage),
-        llm_calls=result.llm_calls,
-        latency_ms=latency_ms,
-        trace=[e.model_dump(mode="json") for e in result.trace.events],
     )
+    return to_response(outcome)

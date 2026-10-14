@@ -1,15 +1,12 @@
 """요청 단위 실행 기록(trace).
 
 request_id 하나로 질문 → 검색 문서 → 도구 호출/결과 → LLM 원본 답변 → 최종 답변을 재구성할 수 있어야 한다.
-저장 직전에 모든 문자열에 개인정보 마스킹을 다시 적용한다. Phase 3 에서 해시 체인 감사 로그로 저장된다.
+감사 로그(app/audit)에 저장될 때 모든 문자열에 개인정보 마스킹을 다시 적용한다.
 """
 
-import json
 import logging
-import threading
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -55,20 +52,3 @@ def mask_deep(value: Any) -> Any:
     if isinstance(value, list | tuple):
         return [mask_deep(v) for v in value]
     return value
-
-
-class TraceLogger:
-    """JSON Lines 파일에 trace 를 남긴다(Phase 2 확인용). None 이면 기록하지 않는다."""
-
-    def __init__(self, path: Path | None) -> None:
-        self.path = path
-        self._lock = threading.Lock()
-
-    def write(self, record: dict[str, Any]) -> None:
-        if self.path is None:
-            return
-        line = json.dumps(mask_deep(record), ensure_ascii=False, default=str)
-        with self._lock:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a", encoding="utf-8") as f:
-                f.write(line + "\n")

@@ -18,6 +18,7 @@ from app.llm.base import (
     LLMResponse,
     LLMUsage,
     StopKind,
+    SystemNoteTurn,
     ToolCall,
     ToolResultsTurn,
     ToolSpec,
@@ -46,6 +47,9 @@ def _to_messages(turns: list[Turn]) -> list[dict[str, Any]]:
             # 같은 요청 안의 assistant turn 은 원본 블록(thinking 포함)을 그대로 재전송한다.
             content = turn.raw if turn.raw is not None else turn.text
             messages.append({"role": "assistant", "content": content})
+        elif isinstance(turn, SystemNoteTurn):
+            # 대화 중간 system 메시지: 사용자 turn 뒤에 오며 캐시된 앞부분을 바꾸지 않는다
+            messages.append({"role": "system", "content": turn.text})
         elif isinstance(turn, ToolResultsTurn):
             messages.append(
                 {

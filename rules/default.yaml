@@ -1,0 +1,194 @@
+# ============================================================================
+# FinGuard AI 컴플라이언스 게이트웨이 — 기본 규칙
+#
+# - 코드 수정 없이 이 파일(또는 tenants/{tenant}.yaml)만 고쳐서 규칙을 바꾼다.
+#   파일이 바뀌면 다음 요청부터 자동 반영된다(수정 시각 기준 재로딩).
+# - 규칙 파일이 잘못되면(문법·스키마 오류) 모든 답변이 상담원 이관된다(fail-safe).
+# - 테넌트 파일 병합 규칙: dict 는 재귀 병합, `id` 를 가진 항목의 리스트는 id 기준 병합
+#   (같은 id 는 덮어쓰기, 새 id 는 추가, `remove: true` 는 삭제), 그 외 리스트는 통째로 교체.
+# - 정규식은 Python re 문법. YAML 에서는 작은따옴표 문자열을 쓰면 역슬래시를 그대로 쓸 수 있다.
+# ============================================================================
+version: "2026.10-1"
+
+# 검사 실행 순서. 개인정보 마스킹을 가장 먼저, 필수 고지 자동 첨부를 가장 마지막에 한다.
+order: [pii, scope, numeric, forbidden_expressions, suitability, disclosures]
+
+messages:
+  escalation: >-
+    문의하신 내용은 전문 상담원이 정확하게 도와드리겠습니다. 상담원에게 연결해 드릴게요. 잠시만 기다려 주세요.
+  blocked: >-
+    죄송합니다. 이 질문에는 정확한 안내를 드리기 어렵습니다. 질문을 조금 바꿔 다시 말씀해 주시거나,
+    상담원 연결을 요청해 주세요.
+
+# ---------------------------------------------------------------------------- 개인정보
+pii:
+  enabled: true
+  # 출력(답변)에서 탐지하면 마스킹 후 AUTO_FIXED. 입력은 LLM 전송 전에 항상 마스킹된다.
+  types: [RRN, CARD, PHONE, ACCOUNT]
+
+# ---------------------------------------------------------------------------- 업무 범위
+scope:
+  enabled: true
+  # 답변이 이 표현을 포함하면 '정중한 거절'로 본다(범위 밖 질문에 거절로 답한 것은 통과).
+  refusal_markers:
+    - '도와드릴 수 없'
+    - '도와드리기 어렵'
+    - '안내해 드릴 수 없'
+    - '안내해 드리기 어렵'
+    - '답변드리기 어렵'
+    - '드릴 수 없습니다'
+    - '제공하지 않'
+    - '업무 범위'
+    - '상담원'
+  categories:
+    - id: investment_advice
+      label: 투자 종목·상품 추천
+      input_patterns:
+        - '(주식|종목|코인|비트코인|이더리움|펀드|ETF|채권|부동산).{0,20}(사도|살까|팔까|사야|팔아야|추천|오를|전망|투자해도)'
+      output_patterns:
+        - '(주식|종목|코인|비트코인|펀드|ETF|채권).{0,20}(매수|매도|사세요|사시는 게|파세요|추천드|유망|오를 것|올라갈)'
+    - id: tax_agency
+      label: 세무 신고 대리·개별 세무 판단
+      input_patterns:
+        - '(세금|종합소득세|양도세|증여세|상속세|연말정산).{0,15}(신고|대신|대행|줄이는 법|절세)'
+      output_patterns:
+        - '(신고|납부).{0,10}(대신|대행).{0,10}(해\s*드리|처리해\s*드리)'
+        - '(세금|세액)을?\s*(줄이|아끼)려면'
+    - id: legal_judgment
+      label: 법률 판단
+      input_patterns:
+        - '(소송|고소|법적|변호사|불법).{0,15}(이길|가능|될까|책임|문제)'
+      output_patterns:
+        - '법적으로\s*(문제|책임).{0,10}(없|있)'
+        - '소송.{0,10}(이기|승소|유리)'
+    - id: other_customer_info
+      label: 다른 고객 정보 요청
+      input_patterns:
+        - '(다른|타)\s*(고객|사람|분).{0,15}(정보|계좌|잔액|대출|연락처|주소)'
+      output_patterns: []
+    - id: competitor_disparagement
+      label: 타사 비방
+      input_patterns: []
+      output_patterns:
+        - '(타사|다른\s*(은행|저축은행|금융사)|경쟁사).{0,20}(나쁘|위험하|형편없|믿을\s*수\s*없|사기)'
+
+# ---------------------------------------------------------------------------- 수치 검증
+numeric:
+  enabled: true
+  # 검증 대상 단위
+  units: [KRW, PERCENT, MONTHS, DAYS]
+  # 고객이 직접 말한 수치(예: "1,000만 원", "12개월")를 답변에서 되풀이하는 것은 허용
+  accept_user_numbers: true
+  # 출처와 무관하게 항상 허용할 수치 (예: { unit: MONTHS, value: 12 })
+  always_allowed: []
+
+# ---------------------------------------------------------------------------- 금지 표현
+forbidden_expressions:
+  enabled: true
+  # 같은 문장에 아래 부정 표현이 있으면 '부정 문맥'으로 보고 허용한다.
+  # 예: "무조건 승인되는 상품은 없습니다" → 허용. (negation_allowed: false 인 항목은 예외 없음)
+  negation_markers:
+    - '없습니다'
+    - '없어요'
+    - '없으며'
+    - '않습니다'
+    - '않아요'
+    - '않으며'
+    - '아닙니다'
+    - '불가'
+    - '할 수 없'
+    - '드릴 수 없'
+    - '어렵습니다'
+  terms:
+    - id: approval_guarantee
+      label: 대출 승인 보장
+      pattern: '(100\s*%|백\s*퍼센트|반드시|무조건|틀림없이|확실히)\s*(대출\s*)?(승인|통과|나옵니다|나와요)'
+      action: block
+    - id: guaranteed_return
+      label: 확정 수익·수익 보장
+      pattern: '확정\s*수익|수익\s*(을\s*)?보장|고수익\s*보장'
+      action: block
+    - id: no_loss
+      label: 손실 없음 단정
+      pattern: '손해\s*(볼|보실)\s*일\s*(이|은)?\s*없|손실\s*(이|은)?\s*전혀\s*없'
+      action: block
+      negation_allowed: false
+    - id: industry_best
+      label: 업계 최고·최저 단정
+      pattern: '업계\s*(최저|최고|1위|유일)'
+      action: rewrite
+      replacement: '경쟁력 있는'
+    - id: unconditional
+      label: 무조건
+      pattern: '무조건'
+      action: rewrite
+      replacement: ''
+  # 보조 수단: 사전에 없는 단정·보장 표현을 LLM 으로 판별. 기본 비활성.
+  llm_judge:
+    enabled: false
+    on_error: escalate   # escalate | ignore
+
+# ---------------------------------------------------------------------------- 적합성
+suitability:
+  enabled: true
+  loan_product_types: [CREDIT_LOAN, POLICY_LOAN]
+  # 이 도구가 호출되면 '대출 권유/개인별 상환액 안내'로 본다
+  trigger_tools: [calculate_loan]
+  # 대출 상품명(또는 '대출')과 같은 문장에 아래 표현이 있으면 권유로 본다
+  recommendation_patterns:
+    - '추천'
+    - '권해'
+    - '권유'
+    - '알맞은'
+    - '적합한\s*상품'
+    - '신청해\s*보'
+    - '이용해\s*보시'
+    - '좋을\s*것\s*같'
+  # 답변이 적합성 질문 자체이면 통과 (각 그룹이 모두 등장하고 물음표가 있어야 함)
+  question_marker_groups:
+    - ['소득']
+    - ['부채', '대출 잔액', '다른 대출', '기존 대출']
+  allow_when_declined: false
+  replacement_message: >-
+    대출 상품을 안내해 드리기 전에 몇 가지 확인이 필요합니다. ① 연소득 ② 기존 대출(부채) 규모
+    ③ 고용 형태(직장인·자영업 등) ④ 자금 용도를 알려 주시겠어요? 확인 내용은 알맞은 상품 안내를 위한 것이며,
+    대출 가능 여부와 금리·한도는 신청 후 심사 결과로 결정됩니다.
+
+# ---------------------------------------------------------------------------- 필수 고지
+disclosures:
+  enabled: true
+  header: '※ 꼭 확인하세요'
+  # 상품명·상품코드가 언급되지 않아도 아래 표현이 있으면 해당 유형을 언급한 것으로 본다
+  product_type_keywords:
+    DEPOSIT: ['정기예금', '예금 상품', '예금 이자', '예치']
+    SAVINGS: ['적금']
+    LOAN: ['대출']
+  required:
+    DEPOSIT:
+      - id: deposit_protection
+        present_patterns: ['예금자\s*보호']
+        # TODO(검증 필요): 예금자보호 한도 문구는 데모 전 시행 기준 확인
+        text: '이 예금은 예금자보호법에 따라 원금과 소정의 이자를 합하여 1인당 최고 1억원까지 보호됩니다.'
+      - id: early_termination
+        present_patterns: ['중도\s*해지']
+        text: '만기 전에 해지하면 약정금리보다 낮은 중도해지이율이 적용되어 이자가 줄어들 수 있습니다.'
+    SAVINGS:
+      - id: deposit_protection
+        present_patterns: ['예금자\s*보호']
+        text: '이 적금은 예금자보호법에 따라 원금과 소정의 이자를 합하여 1인당 최고 1억원까지 보호됩니다.'
+      - id: early_termination
+        present_patterns: ['중도\s*해지']
+        text: '만기 전에 해지하면 약정금리보다 낮은 중도해지이율이 적용되어 이자가 줄어들 수 있습니다.'
+    LOAN:
+      - id: screening
+        present_patterns: ['심사']
+        text: '대출 가능 여부와 금리·한도는 신청 후 심사 결과에 따라 결정됩니다.'
+      - id: credit_score
+        present_patterns: ['신용\s*(점수|평점)']
+        text: '대출 신청 및 이용은 개인신용평점에 영향을 줄 수 있습니다.'
+      - id: rate_change
+        present_patterns: ['금리.{0,10}변동', '변동\s*금리']
+        text: '대출 금리는 시장 상황에 따라 변동될 수 있습니다.'
+      - id: overdue
+        present_patterns: ['연체']
+        text: '연체 시 연체이자가 부과되고 신용정보에 등록되어 금융거래가 제한될 수 있습니다.'

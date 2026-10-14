@@ -35,7 +35,6 @@ class Settings(BaseSettings):
     # 에이전트
     agent_max_steps: int = 8  # 한 요청에서 LLM 호출 최대 횟수. 초과 시 상담원 이관
     allow_debug_mode: bool = True  # 게이트웨이 미적용 원본 답변 반환 허용 (운영에서는 false)
-    trace_log_path: Path | None = REPO_ROOT / "backend" / "logs" / "traces.jsonl"
 
     # 계산 엔진 정책
     rounding_mode: RoundingMode = RoundingMode.TRUNCATE

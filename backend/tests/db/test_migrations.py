@@ -20,12 +20,20 @@ def test_alembic_upgrade_then_seed(tmp_path, monkeypatch, catalog, settings):
         cfg = Config(str(BACKEND / "alembic.ini"))
         cfg.set_main_option("script_location", str(BACKEND / "migrations"))
         command.upgrade(cfg, "head")
+        command.downgrade(cfg, "0001")
+        command.upgrade(cfg, "head")
     finally:
         get_settings.cache_clear()
 
     engine = make_engine(url)
     tables = set(inspect(engine).get_table_names())
     assert {"tenants", "products", "preferential_rate_conditions", "audit_records"} <= tables
+    with engine.connect() as conn:
+        triggers = {
+            r[0]
+            for r in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='trigger'")
+        }
+    assert triggers == {"audit_records_no_update", "audit_records_no_delete"}
     with Session(engine) as s:
         assert seed(s, catalog, settings)["created"] == 8
     engine.dispose()

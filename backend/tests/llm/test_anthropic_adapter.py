@@ -10,6 +10,7 @@ from app.llm.base import (
     AssistantTurn,
     LLMError,
     StopKind,
+    SystemNoteTurn,
     ToolCall,
     ToolResult,
     ToolResultsTurn,
@@ -145,3 +146,13 @@ def test_factory():
     assert llm.model == "claude-sonnet-5-5" and llm.effort == "low"
     with pytest.raises(ValueError):
         build_llm(Settings(_env_file=None, llm_provider="other"))
+
+
+def test_system_note_becomes_mid_conversation_system_message():
+    msgs = FakeMessages(_response([NS(type="text", text="답")]))
+    adapter = AnthropicAdapter(model="m", api_key="k", client=_client(msgs))
+    adapter.complete(system="S", turns=[UserTurn("q"), SystemNoteTurn("검수 피드백")], tools=[])
+    assert msgs.kwargs["messages"] == [
+        {"role": "user", "content": "q"},
+        {"role": "system", "content": "검수 피드백"},
+    ]

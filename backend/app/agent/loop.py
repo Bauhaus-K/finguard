@@ -9,7 +9,6 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
 
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.state import ConversationState
@@ -23,6 +22,7 @@ from app.llm.base import (
     LLMError,
     LLMUsage,
     StopKind,
+    SystemNoteTurn,
     ToolResult,
     ToolResultsTurn,
     Turn,
@@ -86,6 +86,7 @@ def run_agent(
     user_message: str,
     max_steps: int,
     request_id: str | None = None,
+    system_note: str | None = None,
 ) -> AgentResult:
     request_id = request_id or f"req_{uuid.uuid4().hex}"
     trace = Trace(
@@ -119,6 +120,9 @@ def run_agent(
         for role, text in conversation.history
     ]
     turns.append(UserTurn(masked.text))
+    if system_note:
+        turns.append(SystemNoteTurn(system_note))
+        trace.add("system_note", text=system_note)
 
     def escalate(category: str, reason: str) -> AgentResult:
         result.status = AgentStatus.ESCALATED
@@ -196,16 +200,3 @@ def run_agent(
         turns.append(ToolResultsTurn(tool_results))
 
     return escalate("SYSTEM_ERROR", f"최대 단계({max_steps}) 초과")
-
-
-def trace_record(result: AgentResult, extra: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        **result.trace.model_dump(mode="json"),
-        "status": result.status,
-        "answer": result.answer,
-        "escalation": result.escalation,
-        "citations": result.citations,
-        "usage": vars(result.usage),
-        "llm_calls": result.llm_calls,
-        **(extra or {}),
-    }

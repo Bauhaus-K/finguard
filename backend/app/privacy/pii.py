@@ -5,6 +5,7 @@
 """
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -53,10 +54,13 @@ class MaskResult:
         return bool(self.counts)
 
 
-def mask_pii(text: str) -> MaskResult:
+def mask_pii(text: str, types: Iterable[PIIType] | None = None) -> MaskResult:
+    enabled = set(types) if types is not None else set(PIIType)
     counts: dict[PIIType, int] = {}
 
     for pii_type, pattern in _PATTERNS:
+        if pii_type not in enabled:
+            continue
 
         def _replace(m: re.Match[str], pii_type: PIIType = pii_type) -> str:
             digits = sum(ch.isdigit() for ch in m.group(0))
