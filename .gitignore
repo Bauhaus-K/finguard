@@ -13,7 +13,8 @@ __pycache__/
 coverage.xml
 htmlcov/
 
-# local db
+# local db / logs
+backend/logs/
 *.db
 *.db-journal
 

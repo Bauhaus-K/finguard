@@ -11,6 +11,7 @@ dependencies = [
     "sqlalchemy>=2.0.30",
     "alembic>=1.13",
     "pyyaml>=6.0",
+    "anthropic>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -45,3 +46,5 @@ extend-exclude = ["migrations"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
+# 코드 폭은 formatter 가 맞춘다. 한글 문자열·주석은 폭 2로 계산되어 E501 이 과도하게 발생하므로 제외.
+ignore = ["E501"]

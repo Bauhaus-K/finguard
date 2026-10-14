@@ -4,7 +4,7 @@
 BACKEND := backend
 RUN := cd $(BACKEND) && uv run
 
-.PHONY: help install dev migrate seed test test-all lint fmt eval db-up db-down
+.PHONY: help install dev migrate seed test test-all lint fmt eval golden-manual db-up db-down
 
 help:
 	@echo "make install   - 의존성 설치 (uv sync)"
@@ -40,6 +40,9 @@ lint: install
 fmt: install
 	$(RUN) ruff check --fix .
 	$(RUN) ruff format .
+
+golden-manual: seed
+	$(RUN) python -m scripts.run_golden --limit 10
 
 eval:
 	@echo "make eval 은 Phase 5 에서 구현됩니다." && exit 1

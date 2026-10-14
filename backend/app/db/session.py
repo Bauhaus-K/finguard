@@ -5,12 +5,17 @@ from functools import lru_cache
 
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.config import get_settings
 
 
 def make_engine(url: str) -> Engine:
-    engine = create_engine(url, future=True)
+    if url in ("sqlite://", "sqlite:///:memory:"):
+        # 인메모리 DB 는 스레드 간에 같은 연결을 공유해야 한다(테스트용)
+        engine = create_engine(url, poolclass=StaticPool, connect_args={"check_same_thread": False})
+    else:
+        engine = create_engine(url)
     if url.startswith("sqlite"):
 
         @event.listens_for(engine, "connect")
